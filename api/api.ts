@@ -58,6 +58,9 @@ router.post('/convert', async (req, res) => {
 		const mp3Tempname = `${audioTempname}-mp3`;
 		const mp3Temp = path.join(temp, mp3Tempname);
 
+		const videoData: ytdl.videoInfo = await ytdl.getInfo(id).catch(() => null);
+		if (videoData === null) throw new Error('Video data is null');
+
 		let videoPipe = Promise.resolve(null);
 		let audioPipe = Promise.resolve(null);
 		let result = null;
@@ -85,6 +88,9 @@ router.post('/convert', async (req, res) => {
 		await Promise.all([videoPipe, audioPipe]);
 		if (hasAudio && fs.existsSync(audioTemp) && convertMP3 && !fs.existsSync(mp3Temp)) {
 			await new Promise((resolve, reject) => {
+				const author = videoData.videoDetails.author.name.endsWith('- Topic')
+					? videoData.videoDetails.author.name.substring(0, videoData.videoDetails.author.name.length - 8)
+					: videoData.videoDetails.author.name;
 				const audioCont = getContainer(audioMime);
 				ffmpeg()
 					.input(audioTemp)
@@ -92,7 +98,16 @@ router.post('/convert', async (req, res) => {
 					.on('error', reject)
 					.on('end', resolve)
 					.format('mp3')
-					.outputOptions(['-c:a libmp3lame', '-q:a 4'])
+					.outputOptions([
+						'-c:a libmp3lame',
+						'-q:a 4',
+						`-metadata`,
+						`artist=${author}`,
+						`-metadata`,
+						`title=${videoData.videoDetails.title}`,
+						`-metadata`,
+						`date=${videoData.videoDetails.publishDate.split('-')[0]}`
+					])
 					.output(mp3Temp)
 					.run();
 			});
@@ -123,6 +138,10 @@ router.post('/convert', async (req, res) => {
 				}
 
 				await new Promise((resolve, reject) => {
+					const author = videoData.videoDetails.author.name.endsWith('- Topic')
+						? videoData.videoDetails.author.name.substring(0, videoData.videoDetails.author.name.length - 8)
+						: videoData.videoDetails.author.name;
+
 					ffmpeg()
 						.input(videoTemp)
 						.inputFormat(videoCont)
@@ -131,7 +150,14 @@ router.post('/convert', async (req, res) => {
 						.on('error', reject)
 						.on('end', resolve)
 						.format(ext)
-						.outputOptions(['-c:v copy', `-c:a ${audio}`])
+						.outputOptions([
+							'-c:v copy',
+							`-c:a ${audio}`,
+							`-metadata`,
+							`artist=${author}`,
+							`-metadata`,
+							`title=${videoData.videoDetails.title}`
+						])
 						.output(outpath)
 						.run();
 				});
