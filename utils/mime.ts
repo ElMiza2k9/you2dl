@@ -1,6 +1,6 @@
 export function getExtension(mime: string) {
 	let ext = '';
-	mime = mime.split(';')[0];
+	mime = mime.split(';')[0] as string;
 
 	switch (mime) {
 		case 'audio/mpeg':
@@ -37,7 +37,7 @@ export function getExtension(mime: string) {
 
 export function getContainer(mime: string) {
 	let container = '';
-	mime = mime.split(';')[0];
+	mime = mime.split(';')[0] as string;
 
 	switch (mime) {
 		case 'audio/mpeg':

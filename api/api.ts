@@ -58,7 +58,7 @@ router.post('/convert', async (req, res) => {
 		const mp3Tempname = `${audioTempname}-mp3`;
 		const mp3Temp = path.join(temp, mp3Tempname);
 
-		const videoData: ytdl.videoInfo = await ytdl.getInfo(id).catch(() => null);
+		const videoData: ytdl.videoInfo | null = await ytdl.getInfo(id).catch(() => null);
 		if (videoData === null) throw new Error('Video data is null');
 
 		let videoPipe = Promise.resolve(null);
@@ -91,6 +91,9 @@ router.post('/convert', async (req, res) => {
 				const author = videoData.videoDetails.author.name.endsWith('- Topic')
 					? videoData.videoDetails.author.name.substring(0, videoData.videoDetails.author.name.length - 8)
 					: videoData.videoDetails.author.name;
+
+				const title = videoData.videoDetails.title;
+
 				const audioCont = getContainer(audioMime);
 				ffmpeg()
 					.input(audioTemp)
@@ -98,16 +101,9 @@ router.post('/convert', async (req, res) => {
 					.on('error', reject)
 					.on('end', resolve)
 					.format('mp3')
-					.outputOptions([
-						'-c:a libmp3lame',
-						'-q:a 4',
-						`-metadata`,
-						`artist=${author}`,
-						`-metadata`,
-						`title=${videoData.videoDetails.title}`,
-						`-metadata`,
-						`date=${videoData.videoDetails.publishDate.split('-')[0]}`
-					])
+					.outputOptions(['-c:a libmp3lame', '-q:a 4', `-id3v2_version 3`])
+					.outputOptions('-metadata', `artist=${author}`)
+					.outputOptions('-metadata', `title=${title}`)
 					.output(mp3Temp)
 					.run();
 			});
@@ -142,6 +138,8 @@ router.post('/convert', async (req, res) => {
 						? videoData.videoDetails.author.name.substring(0, videoData.videoDetails.author.name.length - 8)
 						: videoData.videoDetails.author.name;
 
+					const title = videoData.videoDetails.title;
+
 					ffmpeg()
 						.input(videoTemp)
 						.inputFormat(videoCont)
@@ -150,14 +148,9 @@ router.post('/convert', async (req, res) => {
 						.on('error', reject)
 						.on('end', resolve)
 						.format(ext)
-						.outputOptions([
-							'-c:v copy',
-							`-c:a ${audio}`,
-							`-metadata`,
-							`artist=${author}`,
-							`-metadata`,
-							`title=${videoData.videoDetails.title}`
-						])
+						.outputOptions(['-c:v copy', `-c:a ${audio}`])
+						.outputOptions('-metadata', `artist=${author}`)
+						.outputOptions('-metadata', `title=${title}`)
 						.output(outpath)
 						.run();
 				});
@@ -171,7 +164,7 @@ router.post('/convert', async (req, res) => {
 		}
 
 		res.json({ success: true, result });
-	} catch (error) {
+	} catch (error: any) {
 		console.log(error);
 		res.status(400).json({
 			message: 'Unable to convert video',
@@ -181,8 +174,8 @@ router.post('/convert', async (req, res) => {
 });
 
 router.get('/download', async (req, res) => {
-	const resultId = (req.query.id as string) || null;
-	const filename = req.query.filename || resultId;
+	const resultId = (req.query['id'] as string) || null;
+	const filename = req.query['filename'] || resultId;
 
 	if (resultId === null) {
 		res.status(400).send('No ID');
@@ -233,12 +226,12 @@ router.get('/download', async (req, res) => {
 
 router.get('/getVideo', async (req, res) => {
 	try {
-		const id = req.query.id as string;
+		const id = req.query['id'] as string;
 		const info = await ytdl.getInfo(id);
 		const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
 		const videoFormats = ytdl.filterFormats(info.formats, 'videoonly');
 		res.status(200).json({ ...info, audioFormats, videoFormats });
-	} catch (error) {
+	} catch (error: any) {
 		res.status(400).json({
 			message: 'La ID del video no es valida',
 			error: error.message
